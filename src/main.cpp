@@ -10,6 +10,9 @@
 
 #include <memory>
 
+#include <Adafruit_BME280.h>
+#include <Wire.h>
+
 #include "sensesp.h"
 #include "sensesp/sensors/analog_input.h"
 #include "sensesp/sensors/digital_input.h"
@@ -25,10 +28,10 @@ using namespace reactesp;
 using namespace sensesp;
 using namespace sensesp::onewire;
 
+Adafruit_BME280 bme280;
 
 // The setup function performs one-time application initialization.
 void setup() {
-  
   SetupLogging(ESP_LOG_DEBUG);
 
   // Construct the global SensESPApp() object
@@ -100,6 +103,51 @@ void setup() {
 
   coolant_temp->connect_to(coolant_temp_calibration)
       ->connect_to(coolant_temp_sk_output);
+
+  const uint bme_read_delay = 1000;
+  const bool bme280_found = bme280.begin(0x76) || bme280.begin(0x77);
+
+  if (!bme280_found) {
+    ESP_LOGW("main", "BME280 not found on I2C address 0x76 or 0x77");
+  } else {
+    auto* bme_temperature =
+        new RepeatSensor<float>(bme_read_delay,
+                                []() { return bme280.readTemperature() + 273.15f; });
+    auto* bme_humidity =
+        new RepeatSensor<float>(bme_read_delay,
+                                []() { return bme280.readHumidity() / 100.0f; });
+    auto* bme_pressure =
+        new RepeatSensor<float>(bme_read_delay,
+                                []() { return bme280.readPressure(); });
+
+    auto* bme_temperature_sk_output =
+        new SKOutputFloat("environment.outside.temperature",
+                          "/bme280/temperature/skPath");
+    auto* bme_humidity_sk_output = new SKOutputFloat(
+        "environment.outside.relativeHumidity", "/bme280/humidity/skPath");
+    auto* bme_pressure_sk_output =
+        new SKOutputFloat("environment.outside.pressure",
+                          "/bme280/pressure/skPath");
+
+    ConfigItem(bme_temperature_sk_output)
+        ->set_title("BME280 Temperature Signal K Path")
+        ->set_description("Signal K path for BME280 temperature")
+        ->set_sort_order(400);
+
+    ConfigItem(bme_humidity_sk_output)
+        ->set_title("BME280 Humidity Signal K Path")
+        ->set_description("Signal K path for BME280 humidity")
+        ->set_sort_order(500);
+
+    ConfigItem(bme_pressure_sk_output)
+        ->set_title("BME280 Pressure Signal K Path")
+        ->set_description("Signal K path for BME280 pressure")
+        ->set_sort_order(600);
+
+    bme_temperature->connect_to(bme_temperature_sk_output);
+    bme_humidity->connect_to(bme_humidity_sk_output);
+    bme_pressure->connect_to(bme_pressure_sk_output);
+  }
 
   // To avoid garbage collecting all shared pointers created in setup(),
   // loop from here.
