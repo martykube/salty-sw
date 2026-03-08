@@ -33,6 +33,11 @@ Adafruit_BME280 bme280;
 // The setup function performs one-time application initialization.
 void setup() {
   SetupLogging(ESP_LOG_DEBUG);
+  ESP_LOGI("main", "Starting Signal K application template");
+#if defined(CORE_DEBUG_LEVEL) && defined(ARDUHAL_LOG_LEVEL_DEBUG) && \
+    (CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG)
+  ESP_LOGI("main", "This program was compiled on: %s at %s", __DATE__, __TIME__);
+#endif
 
   // Construct the global SensESPApp() object
   SensESPAppBuilder builder;
