@@ -1,0 +1,90 @@
+name: Build and Release ESP32 Firmware
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      PIO_ENV: pioarduino_esp32
+      BUILD_DIR: .pio/build/pioarduino_esp32
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: pio run -e "$PIO_ENV"
+
+      - name: Prepare release files
+        run: |
+          SAFE_REF_NAME="${GITHUB_REF_NAME//\//-}"
+          ARCHIVE_NAME="esp32-firmware-${SAFE_REF_NAME}.tar.gz"
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+          mkdir -p dist
+          cp "$BUILD_DIR/firmware.bin" dist/
+          cp "$BUILD_DIR/bootloader.bin" dist/
+          cp "$BUILD_DIR/partitions.bin" dist/
+          cp "$BUILD_DIR/firmware.elf" dist/
+          cat > dist/FLASHING.md <<'EOF'
+          # ESP32 Flashing Instructions
+
+          These binaries were built from this repository for the `pioarduino_esp32` environment.
+
+          ## Offsets
+          - bootloader.bin -> 0x1000
+          - partitions.bin -> 0x8000
+          - firmware.bin -> 0x10000
+
+          ## Example (esptool.py)
+          ```bash
+          esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash -z \\
+            0x1000 bootloader.bin \\
+            0x8000 partitions.bin \\
+            0x10000 firmware.bin
+          ```
+          EOF
+          tar -czf "dist/${ARCHIVE_NAME}" -C dist firmware.bin bootloader.bin partitions.bin firmware.elf FLASHING.md
+
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-firmware-${{ github.sha }}
+          path: |
+            dist/firmware.bin
+            dist/bootloader.bin
+            dist/partitions.bin
+            dist/firmware.elf
+            dist/FLASHING.md
+            dist/${{ env.ARCHIVE_NAME }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/firmware.bin
+            dist/bootloader.bin
+            dist/partitions.bin
+            dist/firmware.elf
+            dist/FLASHING.md
+            dist/${{ env.ARCHIVE_NAME }}
