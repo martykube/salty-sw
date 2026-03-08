@@ -36,6 +36,9 @@ jobs:
 
       - name: Prepare release files
         run: |
+          SAFE_REF_NAME="${GITHUB_REF_NAME//\//-}"
+          ARCHIVE_NAME="esp32-firmware-${SAFE_REF_NAME}.tar.gz"
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
           mkdir -p dist
           cp "$BUILD_DIR/firmware.bin" dist/
           cp "$BUILD_DIR/bootloader.bin" dist/
@@ -59,7 +62,7 @@ jobs:
             0x10000 firmware.bin
           ```
           EOF
-          tar -czf dist/esp32-firmware-${{ github.ref_name }}.tar.gz -C dist firmware.bin bootloader.bin partitions.bin firmware.elf FLASHING.md
+          tar -czf "dist/${ARCHIVE_NAME}" -C dist firmware.bin bootloader.bin partitions.bin firmware.elf FLASHING.md
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
@@ -71,7 +74,7 @@ jobs:
             dist/partitions.bin
             dist/firmware.elf
             dist/FLASHING.md
-            dist/esp32-firmware-${{ github.ref_name }}.tar.gz
+            dist/${{ env.ARCHIVE_NAME }}
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -84,4 +87,4 @@ jobs:
             dist/partitions.bin
             dist/firmware.elf
             dist/FLASHING.md
-            dist/esp32-firmware-${{ github.ref_name }}.tar.gz
+            dist/${{ env.ARCHIVE_NAME }}
