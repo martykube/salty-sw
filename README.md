@@ -2,6 +2,7 @@
 
 A SenseSP project for an engine temperature sensor.
 
+![Salty system diagram](./salty-system.jpeg)
 
 ## Local build
 
